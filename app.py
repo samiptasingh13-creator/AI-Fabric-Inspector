@@ -249,150 +249,59 @@ def load_yolo_model(path):
     return None
 
 def generate_cam_heatmap(model, img_pil, alpha=0.4):
-
     """
-
     Generates a class activation heatmap (Grad-CAM / EigenCAM equivalent) 
-
     overlaid on the original fabric image for Explainable AI (XAI).
-
     """
-
     orig_np = np.array(img_pil.convert("RGB"))
-
     h, w, _ = orig_np.shape
 
-
-
     # 1. Resize and prepare image tensor for model input
-
     img_resized = cv2.resize(orig_np, (640, 640))
-
     tensor = torch.from_numpy(img_resized).permute(2, 0, 1).float().unsqueeze(0) / 255.0
 
-
-
     activations = []
-
     def hook_fn(module, input, output):
-
         if isinstance(output, (tuple, list)):
-
             activations.append(output[0])
-
         else:
-
             activations.append(output)
 
-
-
     try:
-
         # Hook into the neck feature-aggregation layer
-
         py_model = model.model
-
         target_layer = py_model.model[-2]
-
         handle = target_layer.register_forward_hook(hook_fn)
 
-
-
         with torch.no_grad():
-
             _ = py_model(tensor)
-
-
 
         handle.remove()
 
-
-
         if activations:
-
             act = activations[0]
-
             # Compute spatial feature intensity (EigenCAM / Activation mapping)
-
             heatmap = torch.mean(act, dim=1).squeeze().cpu().numpy()
-
             heatmap = np.maximum(heatmap, 0)
-
             if np.max(heatmap) > 0:
-
                 heatmap /= np.max(heatmap)
 
-
-
             # Resize heatmap to match input fabric size
-
             heatmap_resized = cv2.resize(heatmap, (w, h))
-
             heatmap_uint8 = np.uint8(255 * heatmap_resized)
-
             
-
             # Apply JET color map (Blue = Normal Fabric, Red/Yellow = Defect Attention)
-
             color_heatmap = cv2.applyColorMap(heatmap_uint8, cv2.COLORMAP_JET)
-
             color_heatmap_rgb = cv2.cvtColor(color_heatmap, cv2.COLOR_BGR2RGB)
 
-
-
             # Superimpose overlay on original image
-
             overlay = cv2.addWeighted(orig_np, 1 - alpha, color_heatmap_rgb, alpha, 0)
-
             return overlay, color_heatmap_rgb
-
     except Exception as e:
-
         print(f"Heatmap error: {e}")
-
         return orig_np, None
 
-
-
-    return orig_np, None 
-
-# --- RESEARCH & BENCHMARK TABLE FUNCTION ---
-import pandas as pd
-
-def show_research_tab():
-    st.header("📊 Model Benchmarking & Research Evaluation")
-    st.markdown(
-        "This benchmark compares traditional two-stage (**Faster R-CNN**), single-stage (**SSD**), "
-        "and modern single-stage detectors against our **Proposed Architecture** for fabric defect inspection."
-    )
-
-    benchmark_data = {
-        "Model Architecture": [
-            "Faster R-CNN (ResNet-50)",
-            "SSD (VGG16)",
-            "YOLOv8n (Baseline)",
-            "YOLOv11n",
-            "Proposed (YOLOv8n + CBAM + Soft Retinex) 🏆"
-        ],
-        "mAP@50 (%)": [88.5, 78.4, 85.2, 87.1, 93.8],
-        "Precision (%)": [86.2, 77.1, 84.8, 86.5, 92.6],
-        "Recall (%)": [89.4, 79.5, 85.0, 86.8, 94.1],
-        "F1-Score": [0.877, 0.783, 0.849, 0.866, 0.933],
-        "Inference Time (ms)": [115.0, 18.5, 8.2, 7.5, 9.1],
-        "FPS": [8.7, 54.0, 121.9, 133.3, 109.8],
-        "Model Size (MB)": [108.0, 98.0, 6.2, 5.4, 6.5]
-    }
-
-    df = pd.DataFrame(benchmark_data)
-
-    st.subheader("📋 Performance Comparison Matrix")
-    st.dataframe(df, use_container_width=True)
-
-    st.success(
-        "💡 **Key Paper Insights:**\n"
-        "* **Accuracy vs. Speed:** Faster R-CNN yields good precision but operates at only 8.7 FPS (too slow for real-time fabric looms).\n"
-        "* **Proposed Edge:** Adding **CBAM attention** and **Soft Retinex preprocessing** boosts mAP@50 to **93.8%** while maintaining **109.8 FPS** on a lightweight **6.5 MB** footprint."
-    )
+    return orig_np, None
 
 model_path = MODEL_PATHS.get(selected_model_name)
 model = load_yolo_model(model_path)
@@ -523,28 +432,37 @@ if uploaded_files:
         selected_sample_idx = st.selectbox("Select Sample to View:", range(len(sample_names)), format_func=lambda x: sample_names[x])
 
         selected_item = processed_results[selected_sample_idx]
-     # Extract image and run Grad-CAM heatmap
-    orig_pil = selected_item['orig_pil']
-    cam_overlay, _ = generate_cam_heatmap(model, orig_pil)
 
-     # Display Bounding Box and Grad-CAM side-by-side
-    st.subheader("🔍 Defect Analysis & Explainable AI (XAI)")
-    col_a, col_b = st.columns(2)
-    
-    with col_a:
-        st.image(selected_item['res_plotted_rgb'], caption="YOLOv8 Defect Detection (Bounding Boxes)", use_container_width=True)
+        # Extract image safely and convert to PIL for Grad-CAM
+        if 'img_rgb' in selected_item:
+            orig_pil = Image.fromarray(selected_item['img_rgb'])
+        elif 'orig_pil' in selected_item:
+            orig_pil = selected_item['orig_pil']
+        else:
+            orig_pil = Image.fromarray(selected_item['res_plotted_rgb'])
+
+        cam_overlay, _ = generate_cam_heatmap(model, orig_pil)
+
+        # Display Bounding Box and Grad-CAM side-by-side
+        st.subheader("🔍 Defect Analysis & Explainable AI (XAI)")
+        col_a, col_b = st.columns(2)
         
-    with col_b:
-        st.image(cam_overlay, caption="Grad-CAM / Feature Attention Map (Hotspot Detection)", use_container_width=True)
+        with col_a:
+            st.image(selected_item['res_plotted_rgb'], caption="YOLOv8 Defect Detection (Bounding Boxes)", use_container_width=True)
+            
+        with col_b:
+            st.image(cam_overlay, caption="Grad-CAM / Feature Attention Map (Hotspot Detection)", use_container_width=True)
 
-    st.info("💡 **Explainability Note:** Red/yellow regions highlight where the model focused feature attention to flag defects.")
+        st.info("💡 **Explainability Note:** Red/yellow regions highlight where the model focused feature attention to flag defects.")
 
-    scol1, scol2 = st.columns(2)
-    with scol1:
+        st.markdown("---")
+
+        scol1, scol2 = st.columns(2)
+        with scol1:
             st.write("**Original Input Image**")
             st.image(selected_item['img_rgb'], use_container_width=True)
 
-    with scol2:
+        with scol2:
             st.write(f"**Detection Overlay** (`{selected_model_name}`)")
             st.image(selected_item['res_plotted_rgb'], use_container_width=True)
 
