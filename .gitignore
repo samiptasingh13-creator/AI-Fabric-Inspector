@@ -1,0 +1,10 @@
+# Ignore heavy dataset zips and raw data
+*.zip
+dataset/
+dataset_v2/
+dataset_v2_clahe/
+
+# Ignore virtual environments and cache
+venv/
+__pycache__/
+.vscode/
