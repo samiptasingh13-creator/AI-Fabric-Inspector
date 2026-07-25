@@ -248,6 +248,115 @@ def load_yolo_model(path):
             return None
     return None
 
+def generate_cam_heatmap(model, img_pil, alpha=0.4):
+
+    """
+
+    Generates a class activation heatmap (Grad-CAM / EigenCAM equivalent) 
+
+    overlaid on the original fabric image for Explainable AI (XAI).
+
+    """
+
+    orig_np = np.array(img_pil.convert("RGB"))
+
+    h, w, _ = orig_np.shape
+
+
+
+    # 1. Resize and prepare image tensor for model input
+
+    img_resized = cv2.resize(orig_np, (640, 640))
+
+    tensor = torch.from_numpy(img_resized).permute(2, 0, 1).float().unsqueeze(0) / 255.0
+
+
+
+    activations = []
+
+    def hook_fn(module, input, output):
+
+        if isinstance(output, (tuple, list)):
+
+            activations.append(output[0])
+
+        else:
+
+            activations.append(output)
+
+
+
+    try:
+
+        # Hook into the neck feature-aggregation layer
+
+        py_model = model.model
+
+        target_layer = py_model.model[-2]
+
+        handle = target_layer.register_forward_hook(hook_fn)
+
+
+
+        with torch.no_grad():
+
+            _ = py_model(tensor)
+
+
+
+        handle.remove()
+
+
+
+        if activations:
+
+            act = activations[0]
+
+            # Compute spatial feature intensity (EigenCAM / Activation mapping)
+
+            heatmap = torch.mean(act, dim=1).squeeze().cpu().numpy()
+
+            heatmap = np.maximum(heatmap, 0)
+
+            if np.max(heatmap) > 0:
+
+                heatmap /= np.max(heatmap)
+
+
+
+            # Resize heatmap to match input fabric size
+
+            heatmap_resized = cv2.resize(heatmap, (w, h))
+
+            heatmap_uint8 = np.uint8(255 * heatmap_resized)
+
+            
+
+            # Apply JET color map (Blue = Normal Fabric, Red/Yellow = Defect Attention)
+
+            color_heatmap = cv2.applyColorMap(heatmap_uint8, cv2.COLORMAP_JET)
+
+            color_heatmap_rgb = cv2.cvtColor(color_heatmap, cv2.COLOR_BGR2RGB)
+
+
+
+            # Superimpose overlay on original image
+
+            overlay = cv2.addWeighted(orig_np, 1 - alpha, color_heatmap_rgb, alpha, 0)
+
+            return overlay, color_heatmap_rgb
+
+    except Exception as e:
+
+        print(f"Heatmap error: {e}")
+
+        return orig_np, None
+
+
+
+    return orig_np, None 
+
+
 model_path = MODEL_PATHS.get(selected_model_name)
 model = load_yolo_model(model_path)
 
