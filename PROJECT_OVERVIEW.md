@@ -1,7 +1,7 @@
 
 # Research Objectives:
 
-The primary goal of this project is to build a practical, real-time automated inspection system for industrial textile manufacturing that runs efficiently on standard Industrial PCs (IPCs).
+The primary goal of this individual project is to build a practical, real-time automated inspection system for industrial textile manufacturing that runs efficiently on standard Industrial PCs (IPCs).
 
 High-Speed Detection: Maintain frame rates above 80 FPS to match real-time production speeds without introducing latency in conveyor sorting systems.
 
@@ -13,11 +13,11 @@ Model Transparency: Integrate visual heatmaps (Grad-CAM) into the operator dashb
 
 # Methodology:
 
-Our system combines targeted image enhancement, a lightweight feature-preserving network, and automated post-processing:
+The proposed system combines targeted image enhancement, a lightweight feature-preserving network, and automated post-processing:
 
-Image Preprocessing: We apply adaptive Non-Local Means (NLM) filtering alongside local contrast normalization. This smooths out high-frequency warp-and-weft weave patterns while sharpening the boundaries of actual fabric defects.
+Image Preprocessing: I applied adaptive Non-Local Means (NLM) filtering alongside local contrast normalization. This smooths out high-frequency warp-and-weft weave patterns while sharpening the boundaries of actual fabric defects.
 
-Architecture Design: The network uses depthwise separable convolutions to cut down parameter count, paired with a Feature Pyramid Network (FPN) to retain fine spatial details across multiple scales.
+Architecture Design: I designed the network using depthwise separable convolutions to cut down parameter count, paired with a Feature Pyramid Network (FPN) to retain fine spatial details across multiple scales.
 
 Loss Functions: Training utilizes Focal Loss to handle severe class imbalance (where defect-free fabric vastly outnumbers flaw regions) and GIoU loss for precise bounding box placement.
 
