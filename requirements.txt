@@ -1,10 +1,7 @@
-streamlit>=1.28.0
-ultralytics>=8.0.0
-torch>=2.0.0
-torchvision>=0.15.0
-opencv-python-headless
+torch
+torchvision
 numpy
-pandas
+opencv-python
 matplotlib
-Pillow
-fpdf2
+streamlit
+scikit-image
